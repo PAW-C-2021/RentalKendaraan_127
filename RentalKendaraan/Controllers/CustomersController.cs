@@ -19,10 +19,74 @@ namespace RentalKendaraan.Controllers
         }
 
         // GET: Customers
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string ktsd, string searchString, string CurrentFilter, int? pageNumber, string sortOrder)
         {
-            var rentKendaraanContext = _context.Customer.Include(c => c.IdGenderNavigation);
-            return View(await rentKendaraanContext.ToListAsync());
+            //buat list menyimpan ketersediaan
+            var ktsdList = new List<string>();
+            //query mengambil data
+            var ktsdQuery = from d in _context.Customer orderby d.Alamat select d.Alamat;
+
+            ktsdList.AddRange(ktsdQuery.Distinct());
+
+            //untuk menampilkan di view
+            ViewBag.ktsd = new SelectList(ktsdList);
+
+            //panggil db context
+            var menu = from m in _context.Customer.Include(k => k.IdGenderNavigation) select m;
+
+            //untuk memilih dropdownlist ketersediaan
+            if(!string.IsNullOrEmpty(ktsd))
+            {
+                menu = menu.Where(x => x.Alamat == ktsd);
+            }
+
+            //untuk search data
+            if(!string.IsNullOrEmpty(searchString))
+            {
+                menu = menu.Where(s => s.Nik.Contains(searchString) || s.NamaCustomer.Contains(searchString) ||
+                s.Alamat.Contains(searchString) || s.NoHp.Contains(searchString));
+            }
+
+
+            ViewData["CurrentSort"] = sortOrder;
+
+            if (searchString != null)
+            {
+                pageNumber = 1;
+            }
+            else
+            {
+                searchString = CurrentFilter;
+            }
+
+            ViewData["CurrentFilter"] = searchString;
+
+            //definisi jumlah data pada halaman
+            int pageSize = 5;
+
+            //untuk sorting
+            ViewData["NamaSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            ViewData["DateSortParm"] = sortOrder == "Date" ? "date_desc" : "Date";
+
+            switch (sortOrder)
+            {
+                case "name_desc":
+                    menu = menu.OrderByDescending(s => s.IdGenderNavigation);
+                    break;
+                case "Date":
+                    menu = menu.OrderByDescending(s => s.NamaCustomer);
+                    break;
+
+                case "date_desc":
+                    menu = menu.OrderByDescending(s => s.NamaCustomer);
+                    break;
+                default: //name ascending
+                    menu = menu.OrderBy(s => s.IdGenderNavigation.NamaGender);
+                    break;
+
+            }
+
+            return View(await PaginatedList<Customer>.CreateAsync(menu.AsNoTracking(), pageNumber ?? 1, pageSize));
         }
 
         // GET: Customers/Details/5

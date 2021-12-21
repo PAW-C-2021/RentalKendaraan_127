@@ -19,9 +19,74 @@ namespace RentalKendaraan.Controllers
         }
 
         // GET: Jaminans
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string ktsd, string searchString, string CurrentFilter, int? pageNumber, string sortOrder)
         {
-            return View(await _context.Jaminan.ToListAsync());
+            //buat list menyimpan ketersediaan
+            var ktsdList = new List<string>();
+            //query mengambil data
+            var ktsdQuery = from d in _context.Jaminan orderby d.NamaJaminan select d.NamaJaminan;
+
+            ktsdList.AddRange(ktsdQuery.Distinct());
+
+            //untuk menampilkan di view
+            ViewBag.ktsd = new SelectList(ktsdList);
+
+            //panggil db context
+            var menu = from m in _context.Jaminan.Include(k => k.IdJaminan) select m;
+
+            //untuk memilih dropdownlist ketersediaan
+            if (!string.IsNullOrEmpty(ktsd))
+            {
+                menu = menu.Where(x => x.NamaJaminan == ktsd);
+            }
+
+            //untuk search data
+            if (!string.IsNullOrEmpty(searchString))
+            {
+                menu = menu.Where(s => s.NamaJaminan.Contains(searchString));
+            }
+
+
+            //return View(await menu.ToListAsync());
+            ViewData["CurrentSort"] = sortOrder;
+
+            if (searchString != null)
+            {
+                pageNumber = 1;
+            }
+            else
+            {
+                searchString = CurrentFilter;
+            }
+
+            ViewData["CurrentFilter"] = searchString;
+
+            //definisi jumlah data pada halaman
+            int pageSize = 5;
+
+            //untuk sorting
+            ViewData["NamaSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            ViewData["DateSortParm"] = sortOrder == "Date" ? "date_desc" : "Date";
+
+            switch (sortOrder)
+            {
+                case "name_desc":
+                    menu = menu.OrderByDescending(s => s.IdJaminan);
+                    break;
+                case "Date":
+                    menu = menu.OrderByDescending(s => s.NamaJaminan);
+                    break;
+
+                case "date_desc":
+                    menu = menu.OrderByDescending(s => s.NamaJaminan);
+                    break;
+                default: //name ascending
+                    menu = menu.OrderBy(s => s.IdJaminan);
+                    break;
+
+            }
+
+            return View(await PaginatedList<Jaminan>.CreateAsync(menu.AsNoTracking(), pageNumber ?? 1, pageSize));
         }
 
         // GET: Jaminans/Details/5

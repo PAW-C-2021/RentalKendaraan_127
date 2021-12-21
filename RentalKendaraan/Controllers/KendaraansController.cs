@@ -19,10 +19,74 @@ namespace RentalKendaraan.Controllers
         }
 
         // GET: Kendaraans
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string ktsd, string searchString, string CurrentFilter, int? pageNumber, string sortOrder)
         {
-            var rentKendaraanContext = _context.Kendaraan.Include(k => k.IdJenisKendaraanNavigation);
-            return View(await rentKendaraanContext.ToListAsync());
+            //buat list menyimpan ketersediaan
+            var ktsdList = new List<string>();
+            //query mengambil data
+            var ktsdQuery = from d in _context.Kendaraan orderby d.Ketersediaan select d.Ketersediaan;
+
+            ktsdList.AddRange(ktsdQuery.Distinct());
+
+            //untuk menampilkan di view
+            ViewBag.ktsd = new SelectList(ktsdList);
+
+            //panggil db context
+            var menu = from m in _context.Kendaraan.Include(ktsd => ktsd.IdJenisKendaraanNavigation) select m;
+
+            //untuk memilih dropdownlist Ketersediaan
+            if (!string.IsNullOrEmpty(ktsd))
+            {
+                menu = menu.Where(x => x.Ketersediaan == ktsd);
+            }
+
+            //untuk serach data
+            if (!string.IsNullOrEmpty(searchString))
+            {
+                menu = menu.Where(s => s.NoPolisi.Contains(searchString) || s.NamaKendaraan.Contains(searchString)
+                || s.NoStnk.Contains(searchString));
+            }
+
+            //return View(await menu.ToListAsync());
+            //membuat pagelist
+            ViewData["CurrentSort"] = sortOrder;
+            if (searchString != null)
+            {
+                pageNumber = 1;
+            }
+            else
+            {
+                searchString = CurrentFilter;
+            }
+
+            ViewData["CurrentFilter"] = searchString;
+
+            //definisi jumlah data pada halaman
+            int pageSize = 5;
+
+            //untuk sorting
+            ViewData["NamaSortParm"] = String.IsNullOrEmpty(sortOrder) ? "name_desc" : "";
+            ViewData["DateSortParm"] = sortOrder == "Date" ? "date_desc" : "Date";
+
+            switch (sortOrder)
+            {
+                case "name_desc":
+                    menu = menu.OrderByDescending(s => s.IdJenisKendaraan);
+                    break;
+                case "Date":
+                    menu = menu.OrderByDescending(s => s.NamaKendaraan);
+                    break;
+
+                case "date_desc":
+                    menu = menu.OrderByDescending(s => s.NamaKendaraan);
+                    break;
+                default: //name ascending
+                    menu = menu.OrderBy(s => s.IdJenisKendaraanNavigation.NamaJenisKendaraan);
+                    break;
+
+            }
+
+            return View(await PaginatedList<Kendaraan>.CreateAsync(menu.AsNoTracking(), pageNumber ?? 1, pageSize));
         }
 
         // GET: Kendaraans/Details/5

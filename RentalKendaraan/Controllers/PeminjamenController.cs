@@ -19,10 +19,76 @@ namespace RentalKendaraan.Controllers
         }
 
         // GET: Peminjamen
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(string ktsd, string searchString, string CurrentFilter, int? pageNumber, string sortOrder)
         {
-            var rentKendaraanContext = _context.Peminjaman.Include(p => p.IdCustomerNavigation).Include(p => p.IdJaminanNavigation).Include(p => p.IdKendaraanNavigation);
-            return View(await rentKendaraanContext.ToListAsync());
+
+
+            //buat list menyimpan ketersediaan
+            var ktsdList = new List<string>();
+            //query mengambil data
+            var ktsdQuery = from d in _context.Peminjaman orderby d.Biaya select d.Biaya;
+
+          
+
+            //untuk menampilkan di view
+            ViewBag.ktsd = new SelectList(ktsdList);
+
+            //panggil db context
+            var menu = from m in _context.Peminjaman.Include(k => k.IdCustomerNavigation).Include(k => k.IdKendaraanNavigation).Include(k => k.IdJaminanNavigation) select m;
+
+            //untuk memilih dropdownlist ketersediaan
+            if (!string.IsNullOrEmpty(ktsd))
+            {
+                menu = menu.Where(x => x.Biaya.ToString() == ktsd);
+            }
+
+            //untuk search data
+            if (!string.IsNullOrEmpty(searchString))
+            {
+                menu = menu.Where(s => s.Biaya.ToString().Contains(searchString) || s.TglPeminjaman.ToString().Contains(searchString));            }
+
+
+            //return View(await menu.ToListAsync());
+
+
+            //membuat paged list
+            ViewData["CurrentSort"] = sortOrder;
+
+            if (searchString != null)
+            {
+                pageNumber = 1;
+            }
+            else
+            {
+                searchString = CurrentFilter;
+            }
+
+            ViewData["CurrentFilter"] = searchString;
+
+            //untuk sorting
+            ViewData["NameSortParm"] = string.IsNullOrEmpty(sortOrder) ? "nama_desc" : "";
+            ViewData["DataSortParm"] = sortOrder == "Date" ? "data_desc" : "Date";
+
+            switch (sortOrder)
+            {
+                case "name_desc":
+                    menu = menu.OrderByDescending(s => s.IdCustomerNavigation.NamaCustomer);
+                    break;
+                case "Date":
+                    menu = menu.OrderBy(s => s.TglPeminjaman);
+                    break;
+                case "date_desc":
+                    menu = menu.OrderByDescending(s => s.TglPeminjaman);
+                    break;
+                default: //name ascending
+                    menu = menu.OrderBy(s => s.IdCustomerNavigation.NamaCustomer);
+                    break;
+            }
+
+            //definsi jumlah data pada halaman 
+            int pageSize = 5;
+
+            return View(await PaginatedList<Peminjaman>.CreateAsync(menu.AsNoTracking(), pageNumber ?? 1, pageSize));
         }
 
         // GET: Peminjamen/Details/5
